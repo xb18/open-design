@@ -221,6 +221,7 @@ interface RunListFilters {
 interface ChatRunService {
   create(meta: RunCreateMeta): ChatRun;
   get(id: string): ChatRun | null;
+  getPersistedTerminal(id: string): ChatRun | null;
   list(filters: RunListFilters): ChatRun[];
   statusBody(run: ChatRun): ChatRunStatusResponse;
   stream(run: ChatRun, req: Request, res: Response): void;
@@ -521,6 +522,8 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
     pinAssistantMessageOnRunCreate,
     reconcileAssistantMessageOnRunEnd,
   } = ctx.messages;
+  const getReadableRun = (runId: string): ChatRun | null =>
+    design.runs.get(runId) ?? design.runs.getPersistedTerminal(runId);
 
   function runToolBundleDeliveryTargetForProject(
     projectId: unknown,
@@ -1420,7 +1423,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
   app.get('/api/runs/:id/result-package', async (req: ApiRequest, res: ApiResponse) => {
     const runId = routeParamId(req);
     if (!runId) return sendApiError(res, 400, 'BAD_REQUEST', 'run id missing');
-    const run = design.runs.get(runId);
+    const run = getReadableRun(runId);
     if (!run) return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
     const status = design.runs.statusBody(run);
     const project = run.projectId ? toProjectRecord(getProject(db, run.projectId)) : null;
@@ -1506,7 +1509,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
   app.get('/api/runs/:id', (req: ApiRequest, res: ApiResponse) => {
     const runId = routeParamId(req);
     if (!runId) return sendApiError(res, 400, 'BAD_REQUEST', 'run id missing');
-    const run = design.runs.get(runId);
+    const run = getReadableRun(runId);
     if (!run) return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
     res.json(design.runs.statusBody(run));
   });
@@ -1514,7 +1517,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
   app.get('/api/runs/:id/events', (req: ApiRequest, res: ApiResponse) => {
     const runId = routeParamId(req);
     if (!runId) return sendApiError(res, 400, 'BAD_REQUEST', 'run id missing');
-    const run = design.runs.get(runId);
+    const run = getReadableRun(runId);
     if (!run) return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
     design.runs.stream(run, req, res);
   });
@@ -1522,7 +1525,7 @@ export function registerRunRoutes(app: Express, ctx: RegisterRunRoutesDeps) {
   app.get('/api/runs/:id/agui', async (req: ApiRequest, res: ApiResponse) => {
     const runId = routeParamId(req);
     if (!runId) return sendApiError(res, 400, 'BAD_REQUEST', 'run id missing');
-    const run = design.runs.get(runId);
+    const run = getReadableRun(runId);
     if (!run) return sendApiError(res, 404, 'NOT_FOUND', 'run not found');
     const { encodeOdEventForAgui } = await import('@open-design/agui-adapter');
     const sse = createSseResponse(res);
